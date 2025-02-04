@@ -1,0 +1,56 @@
+digraph {
+	subgraph cluster790 {
+		random_intercept [label="random_intercept
+~
+Deterministic" shape=box]
+		y [label="y
+~
+MarginalMixture" shape=ellipse style=filled]
+		mu_total [label="mu_total
+~
+Deterministic" shape=box]
+		mu [label="mu
+~
+BART_mu" shape=ellipse]
+		label=790 labeljust=r labelloc=b style=rounded
+	}
+	subgraph "clusteremitter_ids (181)" {
+		emitter_intercept [label="emitter_intercept
+~
+Normal" shape=ellipse]
+		label="emitter_ids (181)" labeljust=r labelloc=b style=rounded
+	}
+	subgraph "clusterreceiver_ids (178)" {
+		receiver_intercept [label="receiver_intercept
+~
+Normal" shape=ellipse]
+		label="receiver_ids (178)" labeljust=r labelloc=b style=rounded
+	}
+	subgraph "clustergroup_ids (34)" {
+		group_intercept [label="group_intercept
+~
+Normal" shape=ellipse]
+		label="group_ids (34)" labeljust=r labelloc=b style=rounded
+	}
+	subgraph "clustervalidator_ids (3)" {
+		validator_intercept [label="validator_intercept
+~
+Normal" shape=ellipse]
+		label="validator_ids (3)" labeljust=r labelloc=b style=rounded
+	}
+	sigma [label="sigma
+~
+HalfNormal" shape=ellipse]
+	mu_hurdle [label="mu_hurdle
+~
+HalfNormal" shape=ellipse]
+	receiver_intercept -> random_intercept
+	validator_intercept -> random_intercept
+	group_intercept -> random_intercept
+	emitter_intercept -> random_intercept
+	random_intercept -> mu_total
+	mu -> mu_total
+	sigma -> y
+	mu_hurdle -> y
+	mu_total -> y
+}

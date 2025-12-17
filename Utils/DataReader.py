@@ -84,6 +84,7 @@ class DataReader:
 
     def getIndividualInfo(self, fill_in=True):
         df = pd.read_csv(PERSONAL_INFO_SCORE_PATH)
+        nationality_df = pd.read_csv(IMIGRATION_INFO_SCORE_PATH)
         group = [word.replace('KG', '') for word in df["kg"]]
         subject = [word.split("_")[-1] for word in df["id"]]
 
@@ -92,17 +93,17 @@ class DataReader:
         group_count = df["group_count"].values
         age = df["age"].values
         gender = df["gender"].values
+        height = df["height"].values
+        weight = df["weight"].values
+        bmi = df["bmi"].values
         bullying = df["mobb"].values
         prosociality = df["prosociality"].values
         extraversion = df["extraversion"].values
-        feeling_safe = df["feeling_safe_3"].values
-        feeling_happy = df["feeling_happy_3"].values
+        seats = df["Buchstabe"].values
 
-        feeling_stressed = df["feeling_stressed_3"].values
-        collaboration_climate = df["collaboration"].values
+        group_climate = df["group_climate_all"].values
 
-        group_climate_pos = 0.5 * (feeling_safe + feeling_happy)
-        group_climate_neg = feeling_stressed
+        nationality = np.concatenate([nationality_df[nationality_df["Geheimcode"]==a]["Nationalitaet_0"].values if len(nationality_df[nationality_df["Geheimcode"]==a])== 1 else [np.nan] for a in subject_code]).flatten().tolist()
 
         new_df = pd.DataFrame({
             "group": group, "subject": subject,
@@ -112,12 +113,14 @@ class DataReader:
             "bullying": bullying,
             "prosociality": prosociality,
             "extraversion": extraversion,
-            "feeling_safe": feeling_safe,
-            "feeling_happy": feeling_happy,
-            "feeling_stressed": feeling_stressed,
-            "group_collaboration": collaboration_climate,
-            "group_climate_pos": group_climate_pos,
-            "group_climate_neg": group_climate_neg
+            "group_climate": group_climate,
+            "height": height,
+            "weight": weight,
+            "bmi": bmi,
+            "nationality": nationality,
+            "seat_id": seats
+
+
 
         })
         new_df['gender'].replace(['male', 'female'],

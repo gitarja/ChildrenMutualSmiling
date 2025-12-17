@@ -22,14 +22,18 @@ for f in files:
 
 print(np.average(status_avg_list))
 print(np.std(status_avg_list))
-az.plot_dist(status_avg_list, rug=True)
+sorted_probs = np.sort(status_avg_list)
+cdf = np.arange(1, len(sorted_probs) + 1) / len(sorted_probs)
+plt.plot(sorted_probs, cdf)
 # df = pd.DataFrame({"Acceptance rate (%)": status_avg_list})
-# sns.boxplot(data=df,  y="Acceptance rate (%)", color="#252525", fill=False, gap=.1, showfliers=False)
 # sns.stripplot(
-#     data=df, y="Acceptance rate (%)",
-#     dodge=True, alpha=.2, legend=False, color="#252525",
+#     data=df, x="Acceptance rate (%)",
+#     dodge=True,  legend=False, size=4, color=".3"
 # )
-plt.xlabel("Acceptance rate (%)")
+# sns.boxplot(data=df,  x="Acceptance rate (%)",  fill=False, gap=.1, showfliers=False, width=.6)
+
+plt.ylabel("Cumulative distribution function")
+plt.xlabel("Acceptance rate")
 plt.show()
 #print(np.average(np.concatenate(status_list) == 1))
 

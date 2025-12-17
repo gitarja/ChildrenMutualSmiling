@@ -16,8 +16,25 @@ def groupPoints(v: np.array, within_th: int = 5) -> np.array:
 
     return np.array(output)
 
-def generateSurrogate(stream, a: np.array):
+def generateSurrogate(stream):
+    def get_one_episodes(arr):
+        """
+        Extract episodes of consecutive 1s from a 1D array of 0/1 values.
+        Returns an array of shape (N, 2) where:
+            - col 0 = start index of the run of 1s
+            - col 1 = end index of the run of 1s (inclusive)
+        """
+        arr = np.asarray(arr)
 
+        # Detect rising edges (0 -> 1) and falling edges (1 -> 0)
+        diff = np.diff(arr, prepend=0, append=0)
+
+        starts = np.where(diff == 1)[0]
+        ends = np.where(diff == -1)[0] - 1
+
+        return np.vstack([starts, ends]).T
+
+    a = get_one_episodes(stream)
     duration = (a[:, 1] - a[:, 0])
     np.random.permutation(duration)
     n = len(stream)

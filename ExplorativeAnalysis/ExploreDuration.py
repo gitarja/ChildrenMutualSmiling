@@ -11,9 +11,12 @@ import glob
 import os
 from Utils.Conf import EVENT_PATH
 from scipy.ndimage import label
-from BayesianAnalysis.Conf import N_SAMPLES, N_TUNE, N_CHAINS, N_CORE, TARGET_ACC, BAYESIAN_RESULTS_PATH
+from BayesianAnalysis.Conf import N_SAMPLES, N_TUNE, N_CHAINS, N_CORE, TARGET_ACC, BAYESIAN_RESULTS_PATH,BAYESIAN_RESULTS_MODEL_PATH
+from Utils.Conf import DATA_PATH
+import pickle
 import arviz as az
 import pymc as pm
+from scipy import stats
 
 def readData(calculate=False):
     if calculate:
@@ -32,11 +35,14 @@ def readData(calculate=False):
         duration_list = []
         percentage_list = []
         group_list = []
-
+        validator_list = []
+        reader = DataReader(results_path=DATA_PATH)
+        validator_info = reader.getValidationInfo()
         list_of_groups = glob.glob(os.path.join(EVENT_PATH, "*_eventstream.csv"))
 
         for group in list_of_groups:
             group_num = group.split("\\")[-1].split("_")[1]
+            validator = validator_info[validator_info["group"] == group_num]["validator"].values
             print(group_num)
             streams, subject_ids, story_idx, discussion_idx, smile_story, smile_discussion = reader.getData(group_num)
             indices = [story_idx, discussion_idx]
@@ -65,10 +71,11 @@ def readData(calculate=False):
                     percentage_list.append(percentage)
                     experiment_segment_list.append(experiment_segment_label[i_idx])
                     group_list.append(group_num)
+                    validator_list.append(validator[0])
 
         df = pd.DataFrame(
             {"duration(sec)": duration_list, "percentage": percentage_list,
-             "label": experiment_segment_list, "group": group_list})
+             "label": experiment_segment_list, "group": group_list, "validator": validator_list})
         df.to_csv(os.path.join(BAYESIAN_RESULTS_PATH, "smile_duration.csv"))
     else:
         df = pd.read_csv(os.path.join(BAYESIAN_RESULTS_PATH, "smile_duration.csv"))
@@ -106,9 +113,23 @@ if __name__ == '__main__':
     df = readData(False)
     group_story_idx, group_story_unique = pd.factorize(df.loc[df["label"] == "story"]["group"])
     group_discussion_idx, group_discussion_unique = pd.factorize(df.loc[df["label"] == "discussion"]["group"])
-    coords = {"group_story_idx": group_story_unique, "group_discussion_idx": group_discussion_unique}
+
+    validator_story_idx, validator_story_unique = pd.factorize(
+        df.loc[df["label"] == "story"]["validator"])
+    validator_discussion_idx, validator_discussion_unique = pd.factorize(
+        df.loc[df["label"] == "discussion"]["validator"])
+
+    coords = {"group_story_idx": group_story_unique, "group_discussion_idx": group_discussion_unique,
+              "validator_discussion_idx": validator_discussion_unique, "validator_story_idx": validator_story_unique}
 
     mu_m = np.average(df["duration(sec)"].values)
+
+    df["duration(sec)"] = stats.zscore(df["duration(sec)"].values)
+
+    mu_m = np.average(df["duration(sec)"].values)
+    mu_sigma = np.std(df["duration(sec)"].values) ** 2
+
+
     story_obv = df.loc[df["label"] == "story"]["duration(sec)"].values
     discussion_obv = df.loc[df["label"] == "discussion"]["duration(sec)"].values
     with pm.Model(coords=coords) as model:  # model specifications in PyMC3 are wrapped in a with-statement
@@ -117,8 +138,13 @@ if __name__ == '__main__':
         #random intercept
         group_story_intercept = pm.Normal("group_story_intercept", 0, 1, dims="group_story_idx")
         group_discussion_intercept = pm.Normal("group_discussion_intercept", 0, 1, dims="group_discussion_idx")
-        story_mean = pm.Normal('story_mean', mu=mu_m, sigma=1)
-        discussion_mean = pm.Normal('discussion_mean', mu=mu_m, sigma=1)
+
+        validator_story_intercept = pm.Normal("validator_story_intercept", 0, 1, dims="validator_story_idx")
+        validator_discussion_intercept = pm.Normal("validator_discussion_intercept", 0, 1,
+                                                   dims="validator_discussion_idx")
+
+        story_mean = pm.Normal('story_mean', mu=mu_m, sigma=mu_sigma)
+        discussion_mean = pm.Normal('discussion_mean', mu=mu_m, sigma=mu_sigma)
 
         story_std = pm.Uniform("story_std", lower=0.1, upper=1000)
         discussion_std = pm.Uniform("discussion_std", lower=0.1, upper=1000)
@@ -131,9 +157,11 @@ if __name__ == '__main__':
         lambda_1 = story_std ** -2
         lambda_2 = discussion_std ** -2
         story = pm.StudentT("story", nu=nu,
-                                  mu=story_mean + group_story_intercept[group_story_idx],lam=lambda_1,
+                                  mu=story_mean + group_story_intercept[group_story_idx]+ validator_story_intercept[
+                                validator_story_idx],lam=lambda_1,
                                   observed=story_obv)
-        discussion = pm.StudentT("discussion", nu=nu, mu=discussion_mean + group_discussion_intercept[group_discussion_idx],
+        discussion = pm.StudentT("discussion", nu=nu, mu=discussion_mean + group_discussion_intercept[group_discussion_idx]+
+                                    validator_discussion_intercept[validator_discussion_idx],
                                 lam=lambda_2, observed=discussion_obv)
 
         diff_of_means = pm.Deterministic("difference_of_means", story_mean - discussion_mean)
@@ -159,40 +187,45 @@ if __name__ == '__main__':
         # print loo
     hierarchical_loo = az.plot_ppc(idata, kind='cumulative')
     plt.savefig(os.path.join(BAYESIAN_RESULTS_PATH, "PPC\\smile_duration.png"), format='png')
-
+    # save the model
+    with open(BAYESIAN_RESULTS_MODEL_PATH + "\\" + "idata_smile_duration.pkl",
+              'wb') as handle:
+        print("write data into: " + "idata_smile_duration.pkl")
+        pickle.dump(idata, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     trace_post = az.extract(idata.posterior)
+
 
     # list
     discussion_mean_list = []
     story_mean_list = []
     discussion_hdi_list = []
     story_hdi_list = []
-    effect_size_mean_list = []
-    effect_size_hdi_list = []
+    df_means_mean_list = []
+    df_means_hdi_list = []
     features_list = []
 
     # compute mean and HDI 95
     discussion_mean_data = trace_post["discussion_mean"].data
     story_mean_data = trace_post["story_mean"].data
-    discussion_avg = np.mean(discussion_mean_data)
-    story_avg = np.mean(story_mean_data)
+    discussion_avg = np.median(discussion_mean_data)
+    story_avg = np.median(story_mean_data)
     discussion_hdi = az.hdi(discussion_mean_data, hdi_prob=.95)
     story_hdi = az.hdi(story_mean_data, hdi_prob=.95)
 
-    effect_size_mean = np.mean(trace_post["effect_size"].data)
-    effect_size_hdi = az.hdi(trace_post["effect_size"].data, hdi_prob=.95)
+    df_means_mean = np.median(trace_post["effect_size"].data)
+    df_means_hdi = az.hdi(trace_post["effect_size"].data, hdi_prob=.95)
 
     discussion_mean_list.append(discussion_avg)
     story_mean_list.append(story_avg)
     discussion_hdi_list.append(discussion_hdi)
     story_hdi_list.append(story_hdi)
-    effect_size_mean_list.append(effect_size_mean)
-    effect_size_hdi_list.append(effect_size_hdi)
+    df_means_mean_list.append(df_means_mean)
+    df_means_hdi_list.append(df_means_hdi)
 
     summary_df = pd.DataFrame(
-        {"story_mean": story_mean_list, "story_hdi": story_hdi_list,"discussion_mean": discussion_mean_list, "discussion_hdi": discussion_hdi_list,
+        {"story_median": story_mean_list, "story_hdi": story_hdi_list,"discussion_median": discussion_mean_list, "discussion_hdi": discussion_hdi_list,
 
-         "effect_size_mean": effect_size_mean_list, "effect_size_hdi": effect_size_hdi_list})
+         "df_means_median": df_means_mean_list, "df_means_hdi": df_means_hdi_list})
 
     summary_df.to_csv(os.path.join(BAYESIAN_RESULTS_PATH, "hdi", "smile_duration.csv"))

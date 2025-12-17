@@ -1,36 +1,30 @@
 digraph {
-	subgraph cluster790 {
-		random_intercept [label="random_intercept
+	subgraph cluster143 {
+		mu_total [label="mu_total
 ~
 Deterministic" shape=box]
-		y [label="y
-~
-MarginalMixture" shape=ellipse style=filled]
-		mu_total [label="mu_total
+		random_intercept [label="random_intercept
 ~
 Deterministic" shape=box]
 		mu [label="mu
 ~
 BART_mu" shape=ellipse]
-		label=790 labeljust=r labelloc=b style=rounded
-	}
-	subgraph "clusteremitter_ids (181)" {
-		emitter_intercept [label="emitter_intercept
+		y [label="y
 ~
-Normal" shape=ellipse]
-		label="emitter_ids (181)" labeljust=r labelloc=b style=rounded
+Censored" shape=ellipse style=filled]
+		label=143 labeljust=r labelloc=b style=rounded
 	}
-	subgraph "clusterreceiver_ids (178)" {
-		receiver_intercept [label="receiver_intercept
-~
-Normal" shape=ellipse]
-		label="receiver_ids (178)" labeljust=r labelloc=b style=rounded
-	}
-	subgraph "clustergroup_ids (34)" {
+	subgraph "clustergroup_ids (31)" {
 		group_intercept [label="group_intercept
 ~
 Normal" shape=ellipse]
-		label="group_ids (34)" labeljust=r labelloc=b style=rounded
+		label="group_ids (31)" labeljust=r labelloc=b style=rounded
+	}
+	subgraph "clustergroup_counts (3)" {
+		group_count_intercept [label="group_count_intercept
+~
+Normal" shape=ellipse]
+		label="group_counts (3)" labeljust=r labelloc=b style=rounded
 	}
 	subgraph "clustervalidator_ids (3)" {
 		validator_intercept [label="validator_intercept
@@ -38,19 +32,40 @@ Normal" shape=ellipse]
 Normal" shape=ellipse]
 		label="validator_ids (3)" labeljust=r labelloc=b style=rounded
 	}
-	sigma [label="sigma
+	subgraph "clustergenders (2)" {
+		gender_intercept [label="gender_intercept
+~
+Normal" shape=ellipse]
+		label="genders (2)" labeljust=r labelloc=b style=rounded
+	}
+	subgraph "clusterbackground (3)" {
+		background_intercept [label="background_intercept
+~
+Normal" shape=ellipse]
+		label="background (3)" labeljust=r labelloc=b style=rounded
+	}
+	nu [label="nu
+~
+Deterministic" shape=box]
+	receiver_smile_occurence_slope [label="receiver_smile_occurence_slope
+~
+Normal" shape=ellipse]
+	nu_minus_one [label="nu_minus_one
+~
+Exponential" shape=ellipse]
+	global_sigma [label="global_sigma
 ~
 HalfNormal" shape=ellipse]
-	mu_hurdle [label="mu_hurdle
-~
-HalfNormal" shape=ellipse]
-	receiver_intercept -> random_intercept
-	validator_intercept -> random_intercept
 	group_intercept -> random_intercept
-	emitter_intercept -> random_intercept
+	validator_intercept -> random_intercept
+	background_intercept -> random_intercept
+	group_count_intercept -> random_intercept
+	gender_intercept -> random_intercept
 	random_intercept -> mu_total
 	mu -> mu_total
-	sigma -> y
-	mu_hurdle -> y
+	receiver_smile_occurence_slope -> mu_total
+	nu_minus_one -> nu
 	mu_total -> y
+	nu -> y
+	global_sigma -> y
 }

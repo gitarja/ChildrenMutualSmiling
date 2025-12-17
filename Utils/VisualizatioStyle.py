@@ -14,4 +14,4 @@ def myStyle():
     sns.set_style('ticks')
 
 
-    plt.rcParams["axes.prop_cycle"] = cycler(color=['#252525', '#525252', '#737373', '#969696'])
+    plt.rcParams["axes.prop_cycle"] = cycler(color=['#785EF0', '#716EF5', '#6B7FFA', '#648FFF'])

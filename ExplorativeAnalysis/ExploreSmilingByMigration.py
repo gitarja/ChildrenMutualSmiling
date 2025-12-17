@@ -38,7 +38,7 @@ def readData(calculate=False):
         story_occurence_list = []
         discussion_occurence_list = []
         label = []
-        gender_list = []
+        imigration_list = []
         group_list = []
         validator_list = []
         individual_info = reader.getIndividualInfo(True)
@@ -60,8 +60,8 @@ def readData(calculate=False):
                             individual_info["subject"] == subject_ids[i])]
                 label.append("story")
                 label.append("discussion")
-                gender = "female" if subject["gender"].values[0] == 0 else "male"
-                gender_list.extend(gender for _ in range(2))
+                imigration = "german" if subject["nationality"].values[0] == 1 else "non-german"
+                imigration_list.extend(imigration for _ in range(2))
                 group_list.extend(group_num for _ in range(2))
                 validator_list.append(validator[0])
                 validator_list.append(validator[0])
@@ -71,10 +71,10 @@ def readData(calculate=False):
         occurence = np.concatenate([story_occurence_list, discussion_occurence_list])
 
         palette = ['#252525', '#969696']
-        df = pd.DataFrame({"label": label, "smile occurence": occurence, "gender": gender_list, "group": group_list, "validator": validator_list})
-        df.to_csv(os.path.join(BAYESIAN_RESULTS_PATH, "smile_gender.csv"))
+        df = pd.DataFrame({"label": label, "smile occurence": occurence, "nationality": imigration_list, "group": group_list, "validator": validator_list})
+        df.to_csv(os.path.join(BAYESIAN_RESULTS_PATH, "smile_immigration.csv"))
     else:
-        df = pd.read_csv(os.path.join(BAYESIAN_RESULTS_PATH, "smile_gender.csv"))
+        df = pd.read_csv(os.path.join(BAYESIAN_RESULTS_PATH, "smile_immigration.csv"))
 
     return df
 
@@ -82,20 +82,20 @@ def readData(calculate=False):
 
 if __name__ == '__main__':
     df = readData(calculate=False)
-    segment ="discussion"
-    label = "gender_"+segment
-    male_condition = (df["label"] == segment) & (df["gender"] == "male")
-    female_condition = (df["label"] == segment) & (df["gender"] == "female")
-    group_male_idx, group_male_unique = pd.factorize(df.loc[male_condition]["group"])
-    group_female_idx, group_female_unique = pd.factorize(df.loc[female_condition]["group"])
+    segment ="story"
+    label = "imigration_"+segment
+    german_condition = (df["label"] == segment) & (df["nationality"] == "german")
+    non_german_condition = (df["label"] == segment) & (df["nationality"] == "non-german")
+    group_german_idx, group_german_unique = pd.factorize(df.loc[german_condition]["group"])
+    group_non_german_idx, group_non_german_unique = pd.factorize(df.loc[non_german_condition]["group"])
 
-    validator_male_idx, validator_male_unique = pd.factorize(
-        df.loc[male_condition]["validator"])
-    validator_female_idx, validator_female_unique = pd.factorize(
-        df.loc[female_condition]["validator"])
+    validator_german_idx, validator_german_unique = pd.factorize(
+        df.loc[german_condition]["validator"])
+    validator_non_german_idx, validator_non_german_unique = pd.factorize(
+        df.loc[non_german_condition]["validator"])
 
-    coords = {"group_male_idx": group_male_unique, "group_female_idx": group_female_unique,
-              "validator_male_idx": validator_male_unique, "validator_female_idx": validator_female_unique}
+    coords = {"group_german_idx": group_german_unique, "group_non_german_idx": group_non_german_unique,
+              "validator_german_idx": validator_german_unique, "validator_non_german_idx": validator_non_german_unique}
 
     df["smile occurence"] = stats.zscore(df["smile occurence"].values)
 
@@ -104,42 +104,42 @@ if __name__ == '__main__':
 
     print(mu_m)
     print(mu_sigma)
-    male_obv = df.loc[male_condition]["smile occurence"].values
-    female_obv = df.loc[female_condition]["smile occurence"].values
+    german_obv = df.loc[german_condition]["smile occurence"].values
+    non_german_obv = df.loc[non_german_condition]["smile occurence"].values
     with pm.Model(coords=coords) as model:  # model specifications in PyMC3 are wrapped in a with-statement
 
 
         #random intercept
-        group_male_intercept = pm.Normal("group_male_intercept", 0, 1, dims="group_male_idx")
-        group_female_intercept = pm.Normal("group_female_intercept", 0, 1, dims="group_female_idx")
+        group_german_intercept = pm.Normal("group_german_intercept", 0, 1, dims="group_german_idx")
+        group_non_german_intercept = pm.Normal("group_non_german_intercept", 0, 1, dims="group_non_german_idx")
 
-        validator_male_intercept = pm.Normal("validator_male_intercept", 0, 1, dims="validator_male_idx")
-        validator_female_intercept = pm.Normal("validator_female_intercept", 0, 1,
-                                                   dims="validator_female_idx")
+        validator_german_intercept = pm.Normal("validator_german_intercept", 0, 1, dims="validator_german_idx")
+        validator_non_german_intercept = pm.Normal("validator_non_german_intercept", 0, 1,
+                                                   dims="validator_non_german_idx")
 
-        male_mean = pm.Normal('male_mean', mu=mu_m, sigma=mu_sigma)
-        female_mean = pm.Normal('female_mean', mu=mu_m, sigma=mu_sigma)
+        german_mean = pm.Normal('german_mean', mu=mu_m, sigma=mu_sigma)
+        non_german_mean = pm.Normal('non_german_mean', mu=mu_m, sigma=mu_sigma)
 
-        male_std = pm.Uniform("male_std", lower=0.1, upper=1000)
-        female_std = pm.Uniform("female_std", lower=0.1, upper=1000)
+        german_std = pm.Uniform("german_std", lower=0.1, upper=1000)
+        non_german_std = pm.Uniform("non_german_std", lower=0.1, upper=1000)
 
 
         nu_minus_one = pm.Exponential("nu_minus_one", 1 / 29.0)
         nu = pm.Deterministic("nu", nu_minus_one + 1)
         nu_log10 = pm.Deterministic("nu_log10", np.log10(nu))
 
-        lambda_1 = male_std ** -2
-        lambda_2 = female_std ** -2
-        male = pm.StudentT("male", nu=nu,
-                                  mu=male_mean + group_male_intercept[group_male_idx] + validator_male_intercept[validator_male_idx],lam=lambda_1,
-                                  observed=male_obv)
-        female = pm.StudentT("female", nu=nu, mu=female_mean + group_female_intercept[group_female_idx] + validator_female_intercept[validator_female_idx],
-                                lam=lambda_2, observed=female_obv)
+        lambda_1 = german_std ** -2
+        lambda_2 = non_german_std ** -2
+        german = pm.StudentT("german", nu=nu,
+                                  mu=german_mean + group_german_intercept[group_german_idx] + validator_german_intercept[validator_german_idx],lam=lambda_1,
+                                  observed=german_obv)
+        non_german = pm.StudentT("non_german", nu=nu, mu=non_german_mean + group_non_german_intercept[group_non_german_idx] + validator_non_german_intercept[validator_non_german_idx],
+                                lam=lambda_2, observed=non_german_obv)
 
-        diff_of_means = pm.Deterministic("difference_of_means", male_mean - female_mean)
-        diff_of_stds = pm.Deterministic("difference_of_stds", male_std - female_std)
+        diff_of_means = pm.Deterministic("difference_of_means", german_mean - non_german_mean)
+        diff_of_stds = pm.Deterministic("difference_of_stds", german_std - non_german_std)
         effect_size = pm.Deterministic(
-            "effect_size", diff_of_means / np.sqrt((male_std ** 2 + female_std ** 2) / 2)
+            "effect_size", diff_of_means / np.sqrt((german_std ** 2 + non_german_std ** 2) / 2)
         )
 
         # debug and sampling
@@ -161,43 +161,43 @@ if __name__ == '__main__':
     plt.savefig(os.path.join(BAYESIAN_RESULTS_PATH, "PPC\\smile_"+label+".png"), format='png')
 
     # save the model
-    with open(BAYESIAN_RESULTS_MODEL_PATH + "\\" + "idata_smile_gender_"+segment+".pkl",
+    with open(BAYESIAN_RESULTS_MODEL_PATH + "\\" + "idata_smile_imigration_"+segment+".pkl",
               'wb') as handle:
-        print("write data into: " + "idata_smile_gender_"+segment+".pkl")
+        print("write data into: " + "idata_smile_imigration_"+segment+".pkl")
         pickle.dump(idata, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     trace_post = az.extract(idata.posterior)
 
     # list
-    female_mean_list = []
-    male_mean_list = []
-    female_hdi_list = []
-    male_hdi_list = []
+    non_german_mean_list = []
+    german_mean_list = []
+    non_german_hdi_list = []
+    german_hdi_list = []
     df_means_mean_list = []
     df_means_hdi_list = []
     features_list = []
 
     # compute mean and HDI 95
-    female_mean_data = trace_post["female_mean"].data
-    male_mean_data = trace_post["male_mean"].data
-    female_avg = np.median(female_mean_data)
-    male_avg = np.median(male_mean_data)
-    female_hdi = az.hdi(female_mean_data, hdi_prob=.95)
-    male_hdi = az.hdi(male_mean_data, hdi_prob=.95)
+    non_german_mean_data = trace_post["non_german_mean"].data
+    german_mean_data = trace_post["german_mean"].data
+    non_german_avg = np.median(non_german_mean_data)
+    german_avg = np.median(german_mean_data)
+    non_german_hdi = az.hdi(non_german_mean_data, hdi_prob=.95)
+    german_hdi = az.hdi(german_mean_data, hdi_prob=.95)
 
     df_means_mean = np.median(trace_post["effect_size"].data)
     df_means_hdi = az.hdi(trace_post["effect_size"].data, hdi_prob=.95)
 
-    female_mean_list.append(female_avg)
-    male_mean_list.append(male_avg)
-    female_hdi_list.append(female_hdi)
-    male_hdi_list.append(male_hdi)
+    non_german_mean_list.append(non_german_avg)
+    german_mean_list.append(german_avg)
+    non_german_hdi_list.append(non_german_hdi)
+    german_hdi_list.append(german_hdi)
     df_means_mean_list.append(df_means_mean)
     df_means_hdi_list.append(df_means_hdi)
 
     summary_df = pd.DataFrame(
-        {"male_median": male_mean_list, "male_hdi": male_hdi_list, "female_median": female_mean_list,
-         "female_hdi": female_hdi_list,
+        {"german_median": german_mean_list, "german_hdi": german_hdi_list, "non_german_median": non_german_mean_list,
+         "non_german_hdi": non_german_hdi_list,
 
          "df_means_median": df_means_mean_list, "df_means_hdi": df_means_hdi_list})
 
